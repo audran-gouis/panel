@@ -1,0 +1,107 @@
+---
+title: "panel"
+output: html_document
+date: "2026-03-11"
+---
+
+Chargement des packages nécessaires
+```{r}
+library(ggplot2)   
+library(dplyr)    
+library(tidyr)     
+library(readr)     
+set.seed(123)
+```
+
+Définition des paramètres du panel
+```{r}
+n_eleves <- 1000
+annees <- c("CP", "CE1", "CE2", "CM1")
+```
+
+Définition des variables
+```{r}
+eleves <- tibble(
+  id_eleve = 1:n_eleves,
+  taille_famille = sample(2:6, n_eleves, replace = TRUE),
+  monoparental = rbinom(n_eleves, 1, 0.2),
+  pcs_parent = sample(c("cadre","profession_intermediaire","employe","ouvrier"),
+                      n_eleves, replace = TRUE, prob = c(0.25,0.25,0.30,0.20)),
+  diplome_parent = sample(c("brevet","bac","bac+3","bac+5"), n_eleves, replace = TRUE),
+  revenu_mensuel = round(rnorm(n_eleves, 2500, 800)),
+  logement = sample(c("maison","appartement","logement_social"),
+                    n_eleves, replace = TRUE, prob = c(0.45,0.35,0.20)),
+  origine_migratoire = sample(c("aucune","un_parent","deux_parents"),
+                              n_eleves, replace = TRUE, prob = c(0.75,0.15,0.10)),
+  aspiration_famille = sample(c("CAP","BAC","BAC+3","BAC+5"), n_eleves, replace = TRUE)
+)
+```
+
+Génération des données aléatoires du panel
+```{r}
+panel <- expand_grid(
+  annee = annees,
+  id_eleve = eleves$id_eleve  # inversé : année d'abord
+) %>%
+  left_join(eleves, by = "id_eleve") %>%
+  # Rapport à l'école
+  mutate(
+    implication_parents = sample(1:5, n(), replace = TRUE),
+    opinion_ecole = sample(1:5, n(), replace = TRUE)
+  ) %>%
+  group_by(id_eleve) %>%
+  mutate(
+    progression_math = cumsum(rnorm(n(), mean = 5, sd = 5)),
+    progression_fr = cumsum(rnorm(n(), mean = 4, sd = 4)),
+    score_math = 200 + progression_math + rnorm(n(),0,10) +
+      ifelse(pcs_parent=="cadre",15,0) - ifelse(pcs_parent=="ouvrier",15,0),
+    score_fr = 210 + progression_fr + rnorm(n(),0,10) +
+      ifelse(pcs_parent=="cadre",10,0) - ifelse(pcs_parent=="ouvrier",10,0),
+    redoublement = rbinom(n(), 1, 0.1),
+    orientation = case_when(
+      annee %in% c("CP","CE1") ~ "general",
+      annee == "CE2" ~ sample(c("general","technologique","professionnel"), 1,
+                              prob=c(0.6,0.25,0.15)),
+      annee == "CM1" ~ sample(c("general","technologique","professionnel"), 1,
+                              prob=c(0.55,0.25,0.20))
+    ),
+    aspiration_eleve = case_when(
+      score_math + score_fr > 520 ~ "BAC+5",
+      score_math + score_fr > 480 ~ "BAC+3",
+      score_math + score_fr > 440 ~ "BAC",
+      TRUE ~ "CAP"
+    )
+  ) %>%
+  ungroup()
+```
+
+Simulation de l'attrition
+```{r}
+panel <- panel %>%
+  mutate(
+    proba_sortie = case_when(
+      annee == "CP" ~ 0,
+      annee == "CE1" ~ 0.05,
+      annee == "CE2" ~ 0.08,
+      annee == "CM1" ~ 0.10
+    ),
+    sortie = rbinom(n(), 1, proba_sortie)
+  ) %>%
+  group_by(id_eleve) %>%
+  mutate(cumul_sortie = cumsum(sortie)) %>%
+  filter(cumul_sortie == 0) %>%
+  ungroup() %>%
+  select(-proba_sortie, -sortie, -cumul_sortie, -progression_math, -progression_fr)
+```
+
+Vérification de la taille du panel
+```{r}
+panel %>% count(annee)
+```
+
+Sauvegarder les données sous un fichier CSV
+```{r}
+library(readr)
+write_csv(panel, "panel_eleves_longitudinal_attrition.csv")
+```
+
