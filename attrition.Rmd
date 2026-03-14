@@ -12,13 +12,18 @@ library(readr)
 ```
 
 ```{r}
-# Calcul simple de l'attrition avec remise en ordre
+data <- read_csv("panel_eleves_longitudinal_attrition.csv")
+```
+
+ATTRITION PONCTUELLE - calcul
+```{r}
+# Calcul simple de l'attrition 
 attrition <- data %>%
   group_by(annee) %>%
   summarise(effectif = n()) %>%
   # Forcer l'ordre chronologique
   mutate(annee = factor(annee, levels = c("CP", "CE1", "CE2", "CM1"))) %>%
-  arrange(annee) %>%  # Maintenant CP, CE1, CE2, CM1
+  arrange(annee) %>%  
   mutate(
     effectif_annee_prec = lag(effectif),
     sorties = effectif_annee_prec - effectif,
@@ -30,9 +35,6 @@ print(attrition)
 
 ATTRITION PONCTUELLE - visu
 ```{r}
-# Charger ggplot2 si ce n'est pas déjà fait
-library(ggplot2)
-
 # Créer le dataframe d'attrition dans l'ordre chronologique
 attrition <- data %>%
   group_by(annee) %>%
@@ -74,6 +76,89 @@ ggplot(attrition, aes(x = annee, y = effectif, group = 1)) +
     x = "Année scolaire",
     y = "Effectif"
   ) +
+  theme_minimal()
+```
+
+ATTRITION CUMULEE - calcul
+```{r}
+attrition_cumulee <- data %>%
+  group_by(annee) %>%
+  summarise(effectif = n()) %>%
+  mutate(annee = factor(annee, levels = c("CP", "CE1", "CE2", "CM1"))) %>%
+  arrange(annee) %>%
+  mutate(
+    # Effectif de la première vague 
+    effectif_initial = first(effectif),
+    
+    # Attrition cumulée
+    attrition_cumulee = effectif_initial - effectif,
+    
+    # Taux d'attrition cumulée
+    taux_attrition_cumulee = round((attrition_cumulee / effectif_initial) * 100, 1)
+  )
+
+# Afficher
+print(attrition_cumulee)
+```
+
+```{r}
+# Graphique de l'attrition cumulée
+ggplot(attrition_cumulee, aes(x = annee, y = attrition_cumulee)) +
+  geom_col(fill = "darkred", width = 0.6) +
+  geom_text(aes(label = attrition_cumulee), vjust = -0.5, size = 5) +
+  labs(
+    title = "Attrition cumulée",
+    subtitle = "Nombre total d'élèves perdus depuis le CP",
+    x = "Année",
+    y = "Nombre d'élèves perdus"
+  ) +
+  theme_minimal()
+```
+```{r}
+# Graphique du taux d'attrition cumulée
+ggplot(attrition_cumulee, aes(x = annee, y = taux_attrition_cumulee)) +
+  geom_col(fill = "darkred", width = 0.6) +
+  geom_text(aes(label = paste0(taux_attrition_cumulee, "%")), vjust = -0.5, size = 5) +
+  labs(
+    title = "Taux d'attrition cumulée",
+    subtitle = "Pourcentage de l'échantillon initial perdu",
+    x = "Année",
+    y = "Taux (%)"
+  ) +
+  theme_minimal()
+```
+```{r}
+taux_retention <- data %>%
+  group_by(annee) %>%
+  summarise(effectif = n()) %>%
+  mutate(annee = factor(annee, levels = c("CP", "CE1", "CE2", "CM1"))) %>%
+  arrange(annee) %>%
+  mutate(
+    # Effectif de la première vague
+    effectif_initial = first(effectif),
+    
+    # Taux de rétention = (effectif courant / effectif initial) * 100
+    taux_retention = round((effectif / effectif_initial) * 100, 1),
+  )
+
+# Afficher
+print(taux_retention)
+```
+
+```{r}
+# Graphique du taux de rétention
+ggplot(taux_retention, aes(x = annee, y = taux_retention)) +
+  geom_line(aes(group = 1), color = "steelblue", size = 1.5) +
+  geom_point(color = "steelblue", size = 4) +
+  geom_text(aes(label = paste0(taux_retention, "%")), 
+            vjust = -0.8, size = 5) +
+  labs(
+    title = "Taux de rétention du panel",
+    subtitle = "Pourcentage d'élèves encore présents par rapport au CP",
+    x = "Année scolaire",
+    y = "Taux de rétention (%)"
+  ) +
+  ylim(0, 100) +
   theme_minimal()
 ```
 
