@@ -1,0 +1,79 @@
+---
+title: "attrition"
+output: pdf_document
+date: "2026-03-14"
+---
+
+```{r}
+library(ggplot2)   
+library(dplyr)    
+library(tidyr)     
+library(readr)   
+```
+
+```{r}
+# Calcul simple de l'attrition avec remise en ordre
+attrition <- data %>%
+  group_by(annee) %>%
+  summarise(effectif = n()) %>%
+  # Forcer l'ordre chronologique
+  mutate(annee = factor(annee, levels = c("CP", "CE1", "CE2", "CM1"))) %>%
+  arrange(annee) %>%  # Maintenant CP, CE1, CE2, CM1
+  mutate(
+    effectif_annee_prec = lag(effectif),
+    sorties = effectif_annee_prec - effectif,
+    attrition = round((sorties / effectif_annee_prec) * 100, 2)
+  )
+
+print(attrition)
+```
+
+ATTRITION PONCTUELLE - visu
+```{r}
+# Charger ggplot2 si ce n'est pas déjà fait
+library(ggplot2)
+
+# Créer le dataframe d'attrition dans l'ordre chronologique
+attrition <- data %>%
+  group_by(annee) %>%
+  summarise(effectif = n()) %>%
+  mutate(annee = factor(annee, levels = c("CP", "CE1", "CE2", "CM1"))) %>%
+  arrange(annee) %>%
+  mutate(
+    effectif_annee_prec = lag(effectif),
+    sorties = effectif_annee_prec - effectif,
+    attrition = round((sorties / effectif_annee_prec) * 100, 2)
+  )
+
+# Visualisation 1 : Diagramme en barres simple
+ggplot(attrition %>% filter(!is.na(attrition)), 
+       aes(x = annee, y = attrition)) +
+  geom_col(fill = "steelblue", width = 0.6) +
+  geom_text(aes(label = paste0(attrition, "%")), 
+            vjust = -0.5, size = 5) +
+  labs(
+    title = "Taux d'attrition entre chaque année scolaire",
+    subtitle = "Pourcentage d'élèves quittant le panel entre deux niveaux",
+    x = "Année d'arrivée",
+    y = "Taux d'attrition (%)"
+  ) +
+  theme_minimal() +
+  scale_x_discrete(labels = c("CE1" = "CP → CE1", 
+                              "CE2" = "CE1 → CE2", 
+                              "CM1" = "CE2 → CM1"))
+```
+```{r}
+# Visualisation 2 : Évolution des effectifs (courbe)
+ggplot(attrition, aes(x = annee, y = effectif, group = 1)) +
+  geom_line(size = 1.5, color = "darkred") +
+  geom_point(size = 4, color = "darkred") +
+  geom_text(aes(label = effectif), vjust = -0.8, size = 4) +
+  labs(
+    title = "Évolution des effectifs du panel",
+    subtitle = "Nombre d'élèves présents à chaque niveau",
+    x = "Année scolaire",
+    y = "Effectif"
+  ) +
+  theme_minimal()
+```
+
